@@ -1,0 +1,83 @@
+TODO: INIT PAYMENTS MS 
+
+BORRAMOS APP CONTROLLER APP SERVICES Y ARCHIVOS DE TEST 
+
+TODO: CREAMOS LA CARPETA CONFIG Y CREAMOS EL ARCHIVO ENVS.TS USANDO SNNIPPET
+
+1- npm i dotenv joi
+
+2- crear archivo de barril index.ts 
+
+3- en main crear codigo que llame a envs 
+
+import { NestFactory } from '@nestjs/core';
+import { AppModule } from './app.module';
+import { Logger } from '@nestjs/common';
+import { envs } from './config/envs';
+
+async function bootstrap() {
+
+  const logger = new Logger('Pyaments-ms')
+  const app = await NestFactory.create(AppModule);
+  await app.listen(envs.port);
+
+  logger.log(`Payments microservice is running on: ${envs.port}`);
+}
+bootstrap();
+
+4- crear env 
+
+5-nest g res payments sin crear http endpoints
+
+6cradp,
+
+TODO: MERCADOPAGO
+npm i --save mercadopago
+https://www.npmjs.com/package/mercadopago
+
+
+luego
+
+ npm i class-validator class-transformer
+ crear dto de payment
+
+
+TODO: BODY EJEMPLO PARA PREFERENCE
+
+{
+  "items": [
+    {
+      "id": "156",
+      "title": "Mi productoooo",
+      "currency_id": "CLP",
+      "picture_url": "https://www.mercadopago.com/org-img/MP3/home/logomp3.gif",
+      "description": "Descripción del Item",
+      "category_id": "art",
+      "quantity": 1,
+      "unit_price": 2000
+    }
+  ],
+  "external_reference": "referencia_externa",
+  "notification_url": "https://ejemplo.com/notification",
+  "metadata": {
+    "key1": "valor1"
+  },
+  "payer": {
+    "name": "Juan",
+    "surname": "Perez",
+    "phone": {
+      "area_code": "56",
+      "number": "123456789"
+    },
+    "address": {
+      "street_number": "123"
+    }
+  },
+  "back_urls": {
+    "success": "https://ejemplo.com/success",
+    "failure": "https://ejemplo.com/failure",
+    "pending": "https://ejemplo.com/pending"
+  },
+  "auto_return": "approved"
+}
+
