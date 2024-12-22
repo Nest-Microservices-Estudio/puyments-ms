@@ -22,7 +22,8 @@ export class BackUrlsDto {
 export class PreferenceItemDto {
 
   @IsString()
-  id: string;
+  id: string
+  
 
   @IsString()
   title: string;
@@ -82,14 +83,14 @@ export class CustomPreferenceDto {
 
   @IsOptional()
   @Type(() => PayerDto)
-  payer: PayerDto;
+  payer?: PayerDto;
 
   @IsOptional()
   @Type(() => BackUrlsDto)
-  back_urls: BackUrlsDto;
+  back_urls?: BackUrlsDto;
 
   @IsOptional()
   @IsString()
-  auto_return: string;
+  auto_return?: string;
 }
 

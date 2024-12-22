@@ -86,3 +86,116 @@ añadir al product launcher
 
 git submodule add https://github.com/Nest-Microservices-Estudio/puyments-ms.git
 
+TODO: CREACION DE NUEVO MS EN DOCKERCOMPOSE.YAML
+git submodule add <urlde repo de paymebnts>
+
+luego ir al docker.compose.yaml del laucher y agregar la config 
+
+luego copiar cualquier dockerfile y dockerignore de los demas ms y ciopiarlos en payments ms
+
+
+TODO: MICROSERVICIO PAYMENTS 
+
+1. npm i --save @nestjs/microservices nats
+2. configurar main 
+
+import { NestFactory } from '@nestjs/core';
+import { AppModule } from './app.module';
+import { Logger, ValidationPipe } from '@nestjs/common';
+import { envs } from './config/envs';
+import { MicroserviceOptions, Transport } from '@nestjs/microservices';
+
+import { NestFactory } from '@nestjs/core';
+import { AppModule } from './app.module';
+import { Logger, ValidationPipe } from '@nestjs/common';
+import { envs } from './config/envs';
+import { MicroserviceOptions, Transport } from '@nestjs/microservices';
+
+async function bootstrap() {
+  const logger = new Logger('Pyaments-ms');
+  const app = await NestFactory.create(AppModule);
+
+  app.useGlobalPipes(
+    new ValidationPipe({
+      whitelist: true,
+      forbidNonWhitelisted: true,
+    }),
+  );
+
+  app.connectMicroservice<MicroserviceOptions>({
+    transport: Transport.NATS,
+    options: {
+     servers: envs.natsServers,
+    },
+  })
+
+  await app.startAllMicroservices()
+  await app.listen(envs.port)
+
+  logger.log(`Payments microservice is running on: ${envs.port}`);
+}
+bootstrap();
+
+
+3. configurar envs
+
+import 'dotenv/config';
+import * as joi from 'joi';
+interface EnvVars {
+  PORT: number;
+  MERCADO_PAGO_WEBHOOK_SECRET: string;
+  MERCADO_PAGO_ACCESS_TOKEN: string;
+  BASE_URL_WEBHOOK: string;
+  NATS_SERVERS: string[];
+}
+const envsSchema: joi.ObjectSchema = joi.object({
+  PORT: joi.number().required(),
+  MERCADO_PAGO_WEBHOOK_SECRET: joi.string().required(),
+  MERCADO_PAGO_ACCESS_TOKEN: joi.string().required(),
+  BASE_URL_WEBHOOK: joi.string().required(),
+  NATS_SERVERS: joi.array().items(joi.string()).required(),
+}).unknown(true);
+// TODO: NATS MODIFICAMOS VARIABLES PARA PODER TOMAR LOS ELEMENTOS DE LA VARAIBLE DE ENTORNO
+const { error, value } = envsSchema.validate({
+  ...process.env,
+  NATS_SERVERS: process.env.NATS_SERVERS?.split(','),
+});
+if(error) {
+    throw new Error(`Config validation error: ${error.message}`);
+}
+const envVars: EnvVars = value;
+export const envs = {
+    port: envVars.PORT,
+    mercadoPagoWebhookSecret: envVars.MERCADO_PAGO_WEBHOOK_SECRET,
+    mercadoPagoAccessToken: envVars.MERCADO_PAGO_ACCESS_TOKEN,
+    baseUrlWebhook: envVars.BASE_URL_WEBHOOK,
+    natsServers: envVars.NATS_SERVERS,
+}
+
+
+
+ejemplo de objeto referecnce que se puede agrandar 
+
+{
+    "orderId":"12345",
+  "items": [
+ 
+    {
+      "id": "156",
+    "title": "Mi producto exclusivo",
+    "currency_id": "CLP",
+    "picture_url": "https://www.mercadopago.com/org-img/MP3/home/logomp3.gif",
+    "description": "Producto de categoría arte, edición limitada",
+    "category_id": "art",
+    "quantity": 1,
+    "unit_price": 2000
+    }
+  ],
+  "notification_url": "https://2kntm8x3-3004.brs.devtunnels.ms/payments/webhook",
+  "back_urls": {
+    "success": "http://localhost:3004/payments/success",
+    "failure": "http://localhost:3004/payments/failure",
+    "pending": "http://localhost:3004/payments/pending"
+  },
+  "auto_return": "approved"
+}
