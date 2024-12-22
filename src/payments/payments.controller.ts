@@ -12,13 +12,15 @@ import {
 
 import { PaymentsService } from './payments.service';
 import { CustomPreferenceDto } from './dto/custom-preference.dto';
+import { MessagePattern } from '@nestjs/microservices';
 
 @Controller('payments')
 export class PaymentsController {
   constructor(private readonly paymentsService: PaymentsService) {}
 
   // TODO: LLAMAR A ORDEN EN EL SERVICIO
-  @Post('create-preference')
+  // @Post('create-preference')
+  @MessagePattern('create.preference')
   createPreference(@Body() customPreferenceDto: CustomPreferenceDto) {
     return this.paymentsService.createPreference(customPreferenceDto);
   }
