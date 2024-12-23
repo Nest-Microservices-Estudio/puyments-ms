@@ -25,9 +25,7 @@ export class PaymentsService {
     const {
       orderId,
       items,
-      notification_url,
       payer,
-      auto_return,
     } = customPreferenceDto;
 
     const preference = new Preference(this.client);
@@ -37,7 +35,7 @@ export class PaymentsService {
     const bodyCustomPreference: CustomPreferenceDto = {
       items: items,
       external_reference: orderId,
-      notification_url: notification_url,
+      notification_url: `${envs.baseUrlWebhook}/payments/webhook`,
       metadata: { orderId: orderId },
       payer: payer,
       back_urls: {
@@ -45,7 +43,7 @@ export class PaymentsService {
         failure: `${envs.baseUrlWebhook}/payments/cancel`,
         pending: `${envs.baseUrlWebhook}/payments/pending`,
       },
-      auto_return: auto_return,
+      auto_return: 'approved',
     };
 
     // TODO: FLUJO PAGO ORDEN DE COMPRA CREACION DE PREFERENCIA
@@ -86,6 +84,7 @@ export class PaymentsService {
       preferenceId: response.id,
       external_reference: response.external_reference,
       baseUrl: response.back_urls,
+      notitication_url: response.notification_url,
     };
   }
 
