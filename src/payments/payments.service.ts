@@ -1,16 +1,24 @@
-import { HttpException, HttpStatus, Injectable } from '@nestjs/common';
+import {
+  HttpException,
+  HttpStatus,
+  Inject,
+  Injectable,
+  Logger,
+} from '@nestjs/common';
 
 import { MercadoPagoConfig, Payment, Preference } from 'mercadopago';
 import { envs } from 'src/config/envs';
 import * as crypto from 'crypto';
 import { CustomPreferenceDto } from './dto/custom-preference.dto';
+import { NATS_SERVICE } from 'src/config';
+import { ClientProxy } from '@nestjs/microservices';
 
 @Injectable()
 export class PaymentsService {
-  private readonly client: MercadoPagoConfig;
+  private readonly clientMP: MercadoPagoConfig;
 
-  constructor() {
-    this.client = new MercadoPagoConfig({
+  constructor(@Inject(NATS_SERVICE) private readonly client: ClientProxy) {
+    this.clientMP = new MercadoPagoConfig({
       accessToken: envs.mercadoPagoAccessToken,
       options: { timeout: 5000, idempotencyKey: 'abc' },
     });
@@ -22,13 +30,9 @@ export class PaymentsService {
   //   TODO: AQUI YA DEBERIAMOS TENER LA ORDEN QUE LLEGO CON EL OBJETO DE ITEMS
   // POR LO QUE LO USAREMOS EL ID DE LA ORDEN PARA GUARDARLA EN EL EXTERNAL REFERENCE Y LUEGO EN EL WEBHOOK BUSCAR LA ORDEN Y ACTUALIZARLA
   async createPreference(customPreferenceDto: CustomPreferenceDto) {
-    const {
-      orderId,
-      items,
-      payer,
-    } = customPreferenceDto;
+    const { orderId, items, payer } = customPreferenceDto;
 
-    const preference = new Preference(this.client);
+    const preference = new Preference(this.clientMP);
 
     console.log('Items desde createPreference:', orderId);
 
@@ -78,6 +82,7 @@ export class PaymentsService {
 
     // TODO: GUARDAR PREFERENCE ID POR SI EL PAGO QUEDO EN STAND BY Y PAYMENT ID PARA VALIDAR PAGO EN BD
     return {
+      id: response.id,
       init_point: response.init_point,
       sandbox_init_point: response.sandbox_init_point,
       metadata: response.metadata,
@@ -85,6 +90,9 @@ export class PaymentsService {
       external_reference: response.external_reference,
       baseUrl: response.back_urls,
       notitication_url: response.notification_url,
+      payer: response.payer,
+      items: response.items,
+      auto_return: response.auto_return,
     };
   }
 
@@ -190,8 +198,7 @@ export class PaymentsService {
       }
 
       //   TODO: PUEDO HACER ESSTO O TOMARLO DEL EXTERNAL REFERENCE QQUE SERA LA EL ID DE ORDEN
-      const orderId = payment.external_reference;
-      console.log('Order ID desde validate:', orderId);
+      const logger = new Logger('ProcessPayment');
 
       //   const existingPayment = await prismadb.donacion.findFirst({
       //     where: { paymentId: payment.id?.toString() },
@@ -210,7 +217,26 @@ export class PaymentsService {
       //     },
       //   });
 
-      console.log('Payment processed successfully:', payment);
+      logger.log('Payment processed successfully:', payment);
+
+      // TODO: USANDO EVENTO EMIT PARA ENVIAR EL PAGO A ORDENES MS 
+      // PARA USAR EMIT TUVE QUE CONFIGURAR APARTE DEL MICROSERVCIO HIBRIDO 
+      // EN EL MAIN DE ESTE PAYMENT MS 
+      // TUVE QUE CONFIGURAR EL NATSMODULE E IMPORTARLO EN EL 
+      // PAUYMENTMODULE
+      // DE AQUINOS VAMOS A ORDERCONTROLLERS Y AHI SE ESCUCHARA ESTE EMIT
+      // EN EL ORDERS CONTROLLER USSAREMOS EVENTPATTERN EN VEZ DE MESSAGEPATTER
+      // Y CREAREMOS UNA NUEVA FUNCION PARA RECINIR ESTE PAYMENT
+      this.client.emit('payment.succeeded', {
+        paymentId: payment.id,
+        status: payment.status,
+        status_detail: payment.status_detail,
+        orderId: payment.external_reference,
+        payer: payment.payer,
+        metadata: payment.metadata,
+        date_approved: payment.date_approved,
+
+      });
 
       return { message: 'Payment processed successfully' };
     } catch (error) {
@@ -226,7 +252,7 @@ export class PaymentsService {
     console.log('Payment ID desde getPayment:', paymentId);
 
     try {
-      const payment = await new Payment(this.client).get({ id: paymentId });
+      const payment = await new Payment(this.clientMP).get({ id: paymentId });
       return payment;
     } catch (error) {
       throw new HttpException('Payment not found', HttpStatus.NOT_FOUND);
@@ -241,7 +267,7 @@ export class PaymentsService {
   //   SI DEVUELVE QUE EXPIRO DEBERIAMOS ELIMINAR LA ORDEN
   async getPreferenceByPreferenceId(preferenceId: string) {
     try {
-      const preference = await new Preference(this.client).get({
+      const preference = await new Preference(this.clientMP).get({
         preferenceId,
         requestOptions: {},
       });
@@ -287,7 +313,7 @@ export class PaymentsService {
     );
 
     try {
-      const payment = await new Payment(this.client).search({
+      const payment = await new Payment(this.clientMP).search({
         options: {
           external_reference: externalReference,
         },
@@ -306,11 +332,27 @@ export class PaymentsService {
 
       //   si el status esta aprobaado aqui debneriamos llamar a la orden y actualizar el status de la orden a pagado y guardar el payment id en la orden
 
-      return {
-        status: paymentSearch.status,
-        payment_id: paymentSearch.id,
-        id: id,
-      };
+      if(paymentSearch.status === 'approved') {
+
+        // ACTUALIZAMOS LA ORDEN A PAGADA
+        this.client.emit('payment.succeeded', {
+          paymentId: paymentSearch.id,
+          status: paymentSearch.status,
+          status_detail: paymentSearch.status_detail,
+          orderId: paymentSearch.external_reference,
+          payer: paymentSearch.payer,
+          metadata: paymentSearch.metadata,
+          date_approved: paymentSearch.date_approved,
+  
+        });
+
+      } else {
+        return {
+          // EN EL FRONT DETERMINAR QUE NO ESTA PAGADA Y DAR OPCION TOMANDO EL ID DE LA PREFERENCIA QUE FUE GUARDADO EN LA ORDEN 
+          message: 'El pago aun no está realizado',
+        };
+      }
+
     } catch (error) {
       throw new HttpException('Payment not found', HttpStatus.NOT_FOUND);
     }
