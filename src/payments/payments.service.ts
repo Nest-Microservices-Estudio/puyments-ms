@@ -255,6 +255,8 @@ export class PaymentsService {
       const payment = await new Payment(this.clientMP).get({ id: paymentId });
       return payment;
     } catch (error) {
+      console.log('Error desde getPayment:', error);
+      
       throw new HttpException('Payment not found', HttpStatus.NOT_FOUND);
     }
   }
@@ -287,6 +289,8 @@ export class PaymentsService {
         return preference;
       }
     } catch (error) {
+      console.log('Error desde getPreferenceByPreferenceId:', error);
+      
       throw new HttpException('Preference not found', HttpStatus.NOT_FOUND);
     }
   }
@@ -354,6 +358,9 @@ export class PaymentsService {
       }
 
     } catch (error) {
+
+      console.log('Error desde getPaymentByReference:', error);
+      
       throw new HttpException('Payment not found', HttpStatus.NOT_FOUND);
     }
   }
